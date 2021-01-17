@@ -1,0 +1,27 @@
+# Table of results
+Table Header | Second Header
+------------- | -------------
+Table Cell | Cell 2
+Cell 3 | Cell 4
+
+# Model Test Statistics
+Adjusted R-squared | F | df | p
+-----|-----|-----|-----
+Model0 | 0,076 | 7,555 | 157 | <0,001
+Model1 | 0,326 | 13,85 | 153 | <0,001
+
+# Predictors in model0
+b | SE |95% CI lower bound | Odds Ratio | 95% CI upper bound |
+-----|-----|-----|-----|-----
+Intercept | -0.75 | 0,012 | 10,36 | - | 
+health_status | 1,52 | 0,052 | -0,04 | -0,3 | <0,001
+
+Predictors in model1
+b | SE |95% CI lower bound | Odds Ratio | 95% CI upper bound |
+-----|-----|-----|-----|-----
+Intercept | -0.93 | 0,027 | 0,37 | 0,39 | 0,41
+health_status | 1,49 | 0,051 | 4,02 | 4,45 | 4,93
+animal_typeDOG | 0,17 | 0,03 | 1,11 | 1,18 | 1,25
+chip_status | 0,22 | 0,03 | 1,17 | 1,25 | 1,33
+
+

@@ -1,8 +1,10 @@
 ---
-title: "Assignment 3: Model comparison"
+title: 'Assignment 3: Model comparison'
 author: "Marton Kovacs"
-output: html_document
-editor_options: 
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
   chunk_output_type: console
 ---
 
@@ -56,10 +58,24 @@ In your discussion of the findings, briefly interpret the results of the above a
 
 ## Read the data
 
-Read the dataset used in this assignment. Pay attention to the extension of the datafile.
+Read the dataset used in this assignment. Pay attention to the extension of the datafile. Load the needed packages as well.
 
 ```{r}
+library(knitr)
+library(readxl)
 
+# Supress warnings
+options(warn = -1)
+
+# Reading the dataset
+assignment_3_dataset <- read_excel("~/GitHub/public_r_data_analysis_2021_fall/data/assignment_3_dataset.xlsx")
+
+# Load the needed packages for completing the exercises
+library(skimr) 
+library(faraway)
+library(car)
+library(QuantPsyc)
+library(tidyverse)
 ```
 
 ## Data and model diagnostics 
@@ -69,15 +85,29 @@ Read the dataset used in this assignment. Pay attention to the extension of the 
 Run an exploratory data analysis (EDA) to investigate the dataset.
 
 ```{r}
+# Looking at the raw data
+glimpse(assignment_3_dataset)
+assignment_3_dataset
 
+# Look at the mean and distribution of each variable
+assignment_3_dataset %>% select(pain, sex, age, STAI_trait, pain_cat, cortisol_serum, cortisol_saliva, mindfulness) %>% skim()
+
+# Look at the correlations between the variables
+assignment_3_dataset %>% 
+  select(pain, age, STAI_trait, pain_cat, cortisol_serum, cortisol_saliva, mindfulness) %>%
+  cor()
 ```
+
+**From the exploratory data analyses we can see that no value is missing from the dataset. The mean values of the different variables are around the middle of the possible range of values. The standard deviation is smaller in case of the cortisol measures and the mindfulness questionnaire, while larger in case of the pain, age, STAI and pain catastrophizing. From the minimum and maximum values it can be seen that there is a coding error, as the pain measure was from 0 to 10, but one participant indicated a pain level of 50. By looking at the dataset it can also be seen that in the sex variable one subject was coded as "woman" instead of "female". The correlations showed that between most of the variables there is a small or medium correlation, but between cortisol_saliva and cortisol_serum the correlation is very high (above 0.9).**
 
 #### Correct coding errors
 
 If you find values in the dataset during the EDA, that are not correct based on the provided descriptions of the variables of the dataset please correct them here.
 
 ```{r}
-
+# Correct the coding errors
+assignment_3_dataset[142, 2] <- 5
+assignment_3_dataset[35, 3] <- "female"
 ```
 
 ### Model diagnostics
@@ -86,7 +116,9 @@ If you find values in the dataset during the EDA, that are not correct based on 
 In order to test the more complex model for outliers and to test the assumptions first build the model.
 
 ```{r}
-
+# Building the complex model
+complex_model  <- lm(pain ~ age + sex + STAI_trait + pain_cat + mindfulness + cortisol_saliva + cortisol_serum, data=assignment_3_dataset)
+summary(complex_model)
 ```
 
 #### Checking for influential outliers
@@ -94,28 +126,63 @@ In order to test the more complex model for outliers and to test the assumptions
 Check for outlier values in the model.
 
 ```{r}
+# Adding variables to the original dataset which will help to detect outliers
+assignment_3_dataset$residuals<-resid(complex_model)
+assignment_3_dataset$standardized.residuals<- rstandard(complex_model)
+assignment_3_dataset$studentized.residuals<-rstudent(complex_model)
+assignment_3_dataset$cooks.distance<-cooks.distance(complex_model)
+assignment_3_dataset$dfbeta<-dfbeta(complex_model)
+assignment_3_dataset$dffit<-dffits(complex_model)
+assignment_3_dataset$leverage<-hatvalues(complex_model)
+assignment_3_dataset$covariance.ratios<-covratio(complex_model)
 
+# Saving the dataset with the new variables
+write.table(assignment_3_dataset, "Assignment3_dataset With Diagnostics.dat", sep = "\t", row.names
+= FALSE)
+
+# Creating a new variable which shows whether each standardized residual is larger or smaller than 2 (called large residuals), then, summing the number of such large residuals
+assignment_3_dataset$large.residual <- assignment_3_dataset$standardized.residuals > 2 | assignment_3_dataset$standardized.residuals < -2
+sum(assignment_3_dataset$large.residual) 
+
+ # Looking at which cases has standardized residual larger than 2 or -2 
+assignment_3_dataset[assignment_3_dataset$large.residual,c("ID", "pain", "age", "sex", "STAI_trait", "pain_cat", "mindfulness", "cortisol_saliva", "cortisol_serum", "standardized.residuals")]
+
+# Examining further the cases with large residuals, in terms of Cook's distance, leverage and covariance ratios
+assignment_3_dataset[assignment_3_dataset$large.residual, c("cooks.distance", "leverage", "covariance.ratios")] 
 ```
+
+**We expected to see that 95% of the values has a stardardized residual <+/-2. In our sample of 160 this would be 8. It can be seen that 11 residuals are larger than 2 or -2 which is 3 more than it is allowed. Only 1 case is above 2.5, but this is allowed as we expect that 1% of the data will have a standardized residual greater than 2.5 or -2.5. No standardized residual is above 3. None of the cases has a Cook's distance greater than 1, which means that no cases has an undue influence on the model. The average leverage is k+1/n=7+1/160=0.05, all leverage values should be 3 times the average leverage (0.15), which criteria is fulfilled in each case with a large residual, as we can see from the output. The boundaries of the covariance ratios are the following: CVR1 > 1+(3(k+1)/n)=1+(3*7+1)/160)=1.15; CVR2 < 1-(3(k+1)/n)=1-(3*7+1)/160)=0.85; case 105, 107, and 150 are outside this limit.**
 
 #### Checking assumptions
 
 Check the normality assumption.
 
 ```{r}
-
+# Plotting the distribution of the residuals to see whether the residuals have a normal distribution
+ggplot(assignment_3_dataset, aes(x = residuals)) +
+  geom_histogram(binwidth = 0.25, color = "white") +
+  labs(x = "Residual")
 ```
+
+**The histogram shows a fairly normal distribution of the residuals.**
 
 Check the linearity assumption.
 
 ```{r}
-
+# Checking linearity
+plot(complex_model, 1) 
 ```
+
+**Although there is a small curve for the fitted line on the plot, it does not seem to violate the assumption of linearity significantly.**
 
 Check the homoscedasticty assumption (homogeneity of variance).
 
 ```{r}
-
+# Checking homoscedasticity 
+plot(complex_model, 3)
 ```
+
+**The plot shows that the homoscedasticity assumption is met.**
 
 Check the multicollinearity assumption.
 
@@ -126,66 +193,163 @@ https://statisticalhorizons.com/multicollinearity
 http://blog.minitab.com/blog/understanding-statistics/handling-multicollinearity-in-regression-analysis
 
 ```{r}
+# Calculating the VIF for the complex model
+vif(complex_model)
 
+# Calculating tolerance
+1/vif(complex_model) 
 ```
+
+**The VIF for the cortisol_serum and cortisol_saliva variables was above 3, while tolerance was below 0.2, which indicates a problem with multicollinearity. The solution is dropping the variable cortisol_saliva from the model (because cortisol_serum is the more reliable measure of cortisol, it is better to drop the saliva measure).**
 
 ### Making decision based on model diagnostics
 
 If based on the assumption tests you decide to drop a predictor variable you should do that here. Create your updated model.
 
 ```{r}
-
+# Drop cortisol_saliva from the model and create the updated model
+complex_model_upd  <- lm(pain ~ age + sex + STAI_trait + pain_cat + mindfulness + cortisol_serum, data=assignment_3_dataset)
+summary(complex_model_upd)
 ```
 
 #### Checking outliers of the updated model
 
 ```{r}
+# Adding variables to a newly created dataframe for the updated model, which will help to detect outliers
+assignment_3_dataset_updmodel<-assignment_3_dataset
+assignment_3_dataset_updmodel$residuals<-resid(complex_model_upd)
+assignment_3_dataset_updmodel$standardized.residuals<- rstandard(complex_model_upd)
+assignment_3_dataset_updmodel$studentized.residuals<-rstudent(complex_model_upd)
+assignment_3_dataset_updmodel$cooks.distance<-cooks.distance(complex_model_upd)
+assignment_3_dataset_updmodel$dfbeta<-dfbeta(complex_model_upd)
+assignment_3_dataset_updmodel$dffit<-dffits(complex_model_upd)
+assignment_3_dataset_updmodel$leverage<-hatvalues(complex_model_upd)
+assignment_3_dataset_updmodel$covariance.ratios<-covratio(complex_model_upd)
 
+# Saving the dataset with the new variables
+write.table(assignment_3_dataset_updmodel, "Assignment3_dataset With Diagnostics of the updated complex model.dat", sep = "\t", row.names
+= FALSE)
+
+# Creating a new variable which shows whether each standardized residual is larger or smaller than 2 (called large residuals), then, summing the number of such large residuals
+assignment_3_dataset_updmodel$large.residual <- assignment_3_dataset_updmodel$standardized.residuals > 2 | assignment_3_dataset_updmodel$standardized.residuals < -2
+sum(assignment_3_dataset_updmodel$large.residual) # We see that 10 residuals are larger than 2 or -2 which is 2 more than it is allowed. Only 1 case is above 2.5, but this is allowed as we expect that 1% of the data will have a standardized residual greater than 2.5 or -2.5. No standardized residuals are above 3.
+
+# Looking at which cases has standardized residual larger than 2 or -2 
+assignment_3_dataset_updmodel[assignment_3_dataset_updmodel$large.residual,c("ID", "pain", "age", "sex", "STAI_trait", "pain_cat", "mindfulness", "cortisol_serum", "standardized.residuals")] 
+
+# Examining further the cases with large residuals, in terms of Cook's distance, leverage and covariance ratios
+assignment_3_dataset_updmodel[assignment_3_dataset_updmodel$large.residual , c("cooks.distance", "leverage", "covariance.ratios")]
 ```
+
+**We expect to see that 95% of the values has a stardardized residual <+/-2. In our sample of 160 this would be 8. It can be seen that 10 residuals are larger than 2 or -2 which is 2 more than it is allowed. No standardized residuals are above 2.5. None of the cases has Cook's distance greater than 1, which means that no cases has an undue influence on the model. The average leverage is k+1/n=6+1/160=0.043, all leverage values should be 3 times the average leverage (0.13), which criteria is fulfilled in each case with a large residual, as we can see from the output. The boundaries of the covariance ratios are the following: CVR1 > 1+(3(k+1)/n)=1+(3*(6+1)/160)=1.13; CVR2 < 1-(3(k+1)/n)=1-(3*6+1)/160)=0.87; only case 107 and 150 are outside this limit.**
 
 #### Checking assumptions of the updated model
 
 Normality assumption
 
 ```{r}
-
+# Plotting the distribution of the residuals in the updated complex model to see whether the residuals have a normal distribution
+ggplot(assignment_3_dataset_updmodel, aes(x = residuals)) +
+  geom_histogram(binwidth = 0.25, color = "white") +
+  labs(x = "Residual")
 ```
+
+**The histogram shows a fairly normal distribution of the residuals.**
 
 Linearity assumption
 
 ```{r}
+# Checking linearity
+plot(complex_model_upd, 1) # Although there is a small curve for the fitted line on the plot, it does not seem to violate the assumption of linearity significantly
 
 ```
+
+**Although there is a small curve for the fitted line on the plot, it does not seem to violate the assumption of linearity significantly.**
 
 Homoscedasticty assumption (homogeneity of variance)
 
 ```{r}
-
+# Checking homoscedasticity 
+plot(complex_model_upd, 3) # The plot shows that the homoscedasticity assumption is met
 ```
+
+**The plot shows that the homoscedasticity assumption is met.**
 
 Multicollinearity assumption
 
 ```{r}
+# Calculating the VIF for the updated complex model
+vif(complex_model_upd) 
 
+# Calculating tolerance
+1/vif(complex_model_upd) 
 ```
+
+**All VIF and tolerance values are acceptable, there is no problem with multicollinearity.**
 
 ## Model comparison
 
 Create the simple model and get the results of the model that needs to be reported based on the What to report section.
 
 ```{r}
-
+# Creating the simple model 
+simple_model  <- lm(pain ~ age+ sex, data=assignment_3_dataset)
 ```
 
 Create the more complex model based on the results of the model diagnostics. Also, get the results that needs to be reported based on the What to report section.
 
 ```{r}
+# The final model is the updated model
+summary(complex_model_upd)
+summary(simple_model)
 
+## Obtaining Beta values and confidence intervals
+lm.beta(complex_model_upd)
+lm.beta(simple_model)
+confint(complex_model_upd)
+confint(simple_model)
 ```
+
+### Table of results
+
+#### Model Test Statistics
+Models | Adjusted R-squared | F | df | p
+-----|-----|-----|-----|-----
+Simple Model | 0,076 | 7,555 | 157 | <0,001
+Complex Model | 0,326 | 13,85 | 153 | <0,001
+
+#### Predictors in simple model
+Predictors | b (unstandardized coefficient) | 95% CI lower bound | 95% CI upper bound | Beta (standardized coefficient) | p
+-----|-----|-----|-----|-----|-----
+Intercept | 8,49 | 6,63 | 10,36 | - | <0,001
+Age | -0,09 | -0,13 | -0,04 | -0,3 | <0,001
+Sexmale | 0,1 | -0,36 | 0,56 | NA | 0,66
+
+#### Predictors in complex model
+Predictors | b (unstandardized coefficient) | 95% CI lower bound | 95% CI upper bound | Beta (standardized coefficient) | p
+-----|-----|-----|-----|-----|-----
+Intercept | 1,99 | -1,35 | 5,32 | - | 0,24
+Age | -0,04 | -0,08 | 0,01 | -0,12 | 0,12
+Sexmale | 0,31 | -0,1 | 0,73 | NA | 0,14
+STAI_trait | -0,01 | -0,06 | 0,04 | -0,04 | 0,67
+Pain_cat | 0,08 | 0,03 | 0,14 | 0,27 | 0,003
+Mindfulness | -0,15 | -0,39 | 0,01 | -0,09 | 0,24
+Cortisol_serum | 0,53 | 0,29 | 0,78 | 0,35 | <0,001
+
+**Regression equation for the complex model: 
+pain = b0 + b1 X age + b2 X sexmale + b3 X STAI_trait + b4 X pain_cat + b5 X mindfulness + b6 X cortisol_serum=1.98 -0.036 X age + 0.31 X sexmale -0.011 X STAI_trait + 0.084 X pain_cat -0.15 X mindfulness + 0.53 X cortisol_serum**
 
 Compare the two models.
 
 ```{r}
-
+# Comparing the two model
+anova(simple_model, complex_model_upd) # 
+AIC(complex_model_upd, simple_model)
 ```
+
+Discussion: 
+In your discussion of the findings, briefly interpret the results of the above analyses, and indicate whether you think that anything was gained by including the psychological and hormone measures in the model.
+
+**Both regression models are significant, which means they give a better prediction of pain than the mean of pain. The complex model explains 33% of the variation in pain, while the simple model explains 7%. The complex model significantly improved the fit of the model to the data compared to simple_model, F(4, 153) = 15.599, p < .001.
+AIC is 533.36 for the complex model, and 580.09 for the simple model. Because AIC is lower in the complex model, it has a better fit. Based on these analyses it seems that the complex model is better, thus, the model that includes both the psychological and hormone measures is better than the model that only contained age and sex to predict perioperative pain after wisdom tooth surgery. When looking at the individual predictors in the complex model, we can see that when controlling for all the other predictors, only pain catastrophization and the serum cortisol level is significant. These two measures are the most important in predicting perioperative pain.**
 

@@ -18,8 +18,15 @@ You will have to create 3 plots based on the datasets and instructions detailed 
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
-library(tidyverse)
+
+# Supress warnings
+options(warn = -1)
+
+# Loading the required packages for the assignment
 library(tidytuesdayR)
+library(viridis)
+library(scales)
+library(tidyverse)
 ```
 
 ## Task 1: Climbing expeditions
@@ -30,8 +37,43 @@ The 2020-09-22 TidyTueday datasets are about climbing expeditions. From the thre
 -   The bars are ordered by the sum of all expeditions (use `fct_reorder()`).
 -   The bar colors use the viridis palette and light theme.
 
-```{r}
+```{r echo=TRUE}
+# Reading the data
+expeditions <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-09-22/expeditions.csv')
 
+# Getting the 15 most frequent peaks
+expeditions <- expeditions %>%
+  mutate(peak_name_15 = fct_lump_n(peak_name, 15)) %>%
+  count(peak_name_15, season, sort = TRUE)
+
+# Excluding the "other" category
+expeditions <- expeditions %>% 
+  filter(!(peak_name_15 == "Other"))
+
+# Creating a dataframe with the total count of expeditions per peak (called sum_n)
+expeditions2 <- expeditions %>%
+  group_by(peak_name_15) %>%
+  summarise(sum_n = sum(n, na.rm = TRUE)) %>%
+  ungroup()
+
+# Reordering the peak names by the previously calculated total counts of expeditions
+expeditions <- expeditions %>%
+  left_join(expeditions2) %>%
+  mutate(peak_name_15 = fct_reorder(peak_name_15, sum_n))
+```
+
+```{r}
+# Creating the plot
+a<-ggplot(expeditions, aes(fill = season, y = n , x = peak_name_15 ))+
+  geom_bar(position = "stack", stat="identity") +
+  coord_flip() +
+  scale_fill_viridis_d() +
+  theme_light() +
+  theme(legend.position = "bottom") +
+  ggtitle("The 15 most popular peaks stacked by season of expedition") +
+  xlab("") +
+  ylab("Number of Expeditions")
+a
 ```
 
 ## Task 2: PhDs awarded
@@ -44,8 +86,32 @@ Notes:
 -   To make the x axis breaks pretty, use `scales::pretty_breaks()`, to make the y axis labels comma formatted, use `scales::comma_format()`.
 -   The line size is 1.2, the colors are from the brewer "Dark2" palette. The theme is set to minimal.
 
-```{r}
+```{r echo=TRUE}
+# Reading the data 
+phd_field <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-02-19/phd_by_field.csv")
 
+# Selecting the variables needed for the plot, then grouping by broad field and year, while summing up the number of PhDs
+phd_field_selected <- phd_field %>% 
+ select(broad_field, n_phds, year) %>% 
+ group_by(broad_field, year) %>% 
+ summarize(sum_n_phds = sum(n_phds, na.rm=TRUE)) %>% 
+ ungroup()
+
+# Converting year to date format
+phd_field_selected$year <- as.Date(as.character(phd_field_selected$year), "%Y")
+```
+
+```{r}
+# Creating the plot
+ggplot(phd_field_selected, 
+      aes(x = year, y = sum_n_phds, colour = broad_field)) +
+      geom_line() + 
+      ggtitle("Number of awarded Ph.D.-s in the US by year") +
+      scale_x_date("") +
+      scale_y_continuous(label = comma) +
+      xlab("") +
+      ylab("") +
+      labs(colour = "Broad field")
 ```
 
 ## Task 3: Commute in the US
@@ -58,6 +124,37 @@ Notes:
 -   Both axis scales are log transformed and the labels comma formatted, using `scales::comma_format()`
 -   The point size is 2, . The theme is set to light.
 
-```{r}
+```{r echo=TRUE}
+# Reading the data
+commute_mode <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-11-05/commute.csv")
 
+# Selecting the region, abbreviated state, mode of transport, and number of commuters variables
+commute_mode_selected <- commute_mode %>% select(state_abb, mode, state_region, n)
+
+# Grouping by region, abbreviated state and mode of transport, while summing up the number of commuters
+commute_mode_selected <- commute_mode_selected %>% 
+     group_by(state_region, state_abb, mode) %>% 
+     summarize(sum_n = sum(n, na.rm = TRUE)) %>% 
+     ungroup()
+
+# Transforming the column "mode" into separate "bicycle" and walk "columns" using the variable number of commuters (sum_n)
+commute_mode_selected <- pivot_wider(commute_mode_selected, names_from = "mode", values_from = "sum_n")
 ```
+
+```{r}
+# Creating the plot by transforming the scales to log N based
+ggplot(commute_mode_selected, aes(x = Walk, y = Bike, color = state_region )) + geom_point(size = 2) +
+  scale_y_continuous(trans = log_trans(), 
+                         breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = comma_format()) + 
+  scale_x_continuous(trans = log_trans(), 
+                         breaks = trans_breaks("log", function(x) exp(x)),
+                         labels = comma_format()) + 
+  geom_text(aes(label = state_abb), size = 4, check_overlap = T, color = "black") +
+  theme_light() +
+  ggtitle("Number of people walking vs. biking to work in each USA state") +
+  xlab("Number of ppl walking to work (log N)") +
+  ylab("Number of ppl biking to work (log N)") +
+  labs(color = "State region")
+```
+
